@@ -1,0 +1,139 @@
+@page "/cart"
+@inject CartService CartService
+@inject NavigationManager NavigationManager
+@inject ILogger<Cart> Logger
+
+<PageTitle>Shopping Cart</PageTitle>
+
+<h1>Shopping Cart</h1>
+
+@if (isLoading)
+{
+    <p><em>Loading cart...</em></p>
+}
+else if (cartItems == null || !cartItems.Any())
+{
+    <p>Your cart is empty. <a href="/">Go find some awesome shirts!</a></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Item</th>
+                <th>Image</th>
+                <th>Price</th>
+                <th>Quantity</th>
+                <th>Total</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in cartItems)
+            {
+                <tr>
+                    <td>@item.Name</td>
+                    <td><img src="@item.ImageUrl" alt="@item.Name" style="max-width: 50px; max-height: 50px;" /></td>
+                    <td>@item.Price.ToString("C")</td>
+                    <td>
+                        <input type="number" min="1" value="@item.Quantity" @onchange="(e) => UpdateQuantity(item, e)" class="form-control" style="width: 80px;" />
+                    </td>
+                    <td>@((item.Price * item.Quantity).ToString("C"))</td>
+                    <td>
+                        <button class="btn btn-danger btn-sm" @onclick="() => RemoveItem(item.ProductId)">Remove</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4" class="text-end"><strong>Total:</strong></td>
+                <td><strong>@cartTotal.ToString("C")</strong></td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <div class="d-flex justify-content-between">
+         <button class="btn btn-outline-secondary" @onclick="ClearCart">Clear Cart</button>
+         <button class="btn btn-success" @onclick="ProceedToCheckout">Proceed to Checkout</button>
+    </div>
+}
+
+@code {
+    private List<CartItemDto>? cartItems;
+    private decimal cartTotal;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCart();
+        // Subscribe to changes if other components might modify the cart while this page is open
+        CartService.OnChange += HandleCartChange;
+    }
+
+     private async void HandleCartChange()
+    {
+        // Reload cart details when notified of a change
+        await LoadCart();
+        await InvokeAsync(StateHasChanged);
+    }
+
+
+    private async Task LoadCart()
+    {
+        isLoading = true;
+        StateHasChanged(); // Show loading indicator
+
+        cartItems = await CartService.GetCartItemsAsync();
+        cartTotal = await CartService.GetCartTotalAsync();
+
+        isLoading = false;
+        StateHasChanged(); // Hide loading indicator, show cart
+    }
+
+    private async Task UpdateQuantity(CartItemDto item, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int quantity) && quantity > 0)
+        {
+             Logger.LogInformation("Updating quantity for Product {ProductId} to {Quantity}", item.ProductId, quantity);
+            await CartService.UpdateQuantityAsync(item.ProductId, quantity);
+             // No need to call LoadCart if OnChange event handler is set up correctly
+             // await LoadCart(); // Recalculate total
+        }
+         else {
+             // Handle invalid input? Maybe reset to original quantity?
+             Logger.LogWarning("Invalid quantity input '{InputValue}' for Product {ProductId}", e.Value, item.ProductId);
+             // Force a re-render to revert the input visually if the service didn't change it
+             StateHasChanged();
+         }
+    }
+
+    private async Task RemoveItem(int productId)
+    {
+        Logger.LogInformation("Removing Product {ProductId} from cart", productId);
+        await CartService.RemoveFromCartAsync(productId);
+        // await LoadCart(); // Reload needed if OnChange not handled robustly
+    }
+
+    private async Task ClearCart()
+    {
+         Logger.LogInformation("Clearing cart");
+         await CartService.ClearCartAsync();
+         // await LoadCart(); // Reload needed if OnChange not handled robustly
+    }
+
+
+    private void ProceedToCheckout()
+    {
+        // User must be logged in to checkout (handled by [Authorize] on Checkout page)
+        NavigationManager.NavigateTo("/checkout");
+    }
+
+     // Implement IDisposable if subscribing to events
+    public void Dispose()
+    {
+        CartService.OnChange -= HandleCartChange;
+        GC.SuppressFinalize(this);
+    }
+}

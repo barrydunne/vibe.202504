@@ -1,0 +1,202 @@
+@page "/checkout"
+@attribute [Authorize] // Require login
+@inject ApiClient ApiClient
+@inject CartService CartService
+@inject StripeService StripeService
+@inject NavigationManager NavigationManager
+@inject ILogger<Checkout> Logger
+
+@implements IAsyncDisposable // To dispose Stripe service if needed
+
+<h1>Checkout</h1>
+
+@if (isLoading)
+{
+    <p><em>Loading cart...</em></p>
+}
+else if (cartItems == null || !cartItems.Any())
+{
+    <p>Your cart is empty. <a href="/">Go shopping!</a></p>
+}
+else
+{
+    <h2>Order Summary</h2>
+    <ul>
+        @foreach (var item in cartItems)
+        {
+            <li>@item.Quantity x @item.Name (@item.Price.ToString("C"))</li>
+        }
+    </ul>
+    <p><strong>Total: @cartTotal.ToString("C")</strong></p>
+
+    <hr />
+
+    <h2>Payment Details</h2>
+    <div class="mb-3">
+        <label>Card Details</label>
+        <div id="card-element" class="form-control">
+            <!-- Stripe Card Element will be inserted here -->
+        </div>
+         <!-- Used to display form errors from Stripe -->
+        <div id="card-errors" role="alert" class="text-danger mt-1"></div>
+    </div>
+
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    <button class="btn btn-primary" @onclick="HandlePlaceOrder" disabled="@IsPlaceOrderDisabled"> @* Disable button until Stripe is ready *@
+        @(isProcessing ? "Processing Payment..." : "Place Order")
+    </button>
+}
+
+@code {
+    private List<CartItemDto>? cartItems;
+    private decimal cartTotal;
+    private bool isLoading = true;
+    private bool isProcessing = false;
+    private string? errorMessage;
+    internal bool stripeInitialized = false;
+    // Flag to track if cart is loaded AND non-empty for Stripe init trigger
+    private bool shouldInitializeStripe = false;
+
+    private bool IsPlaceOrderDisabled => isProcessing || !stripeInitialized;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("Checkout.razor: OnInitializedAsync START");
+        isLoading = true;
+        try
+        {
+            cartItems = await CartService.GetCartItemsAsync();
+            if (cartItems != null && cartItems.Any())
+            {
+                cartTotal = await CartService.GetCartTotalAsync();
+                // Set flag to true ONLY if cart loaded and has items
+                shouldInitializeStripe = true;
+            }
+            else
+            {
+                cartItems = new List<CartItemDto>(); // Ensure not null
+                cartTotal = 0;
+                shouldInitializeStripe = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading cart in Checkout OnInitializedAsync");
+            errorMessage = "Failed to load cart details.";
+            cartItems = new List<CartItemDto>(); // Ensure cartItems is not null
+            shouldInitializeStripe = false;
+        }
+        finally
+        {
+            isLoading = false;
+            Logger.LogInformation("Checkout.razor: OnInitializedAsync END");
+        }
+    }
+
+    // Flag to prevent multiple initializations
+    private bool stripeInitializationAttempted = false;
+    private int renderCycleAfterStripe = 0;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+         // Initialize Stripe Elements only once after the component is rendered
+        if (shouldInitializeStripe && !stripeInitializationAttempted)
+        {
+            // Mark as attempted immediately to prevent re-entry
+            stripeInitializationAttempted = true;
+
+            Logger.LogInformation("Checkout.razor: OnAfterRenderAsync - Attempting Stripe init for #card-element.");
+            try
+            {
+                await StripeService.InitializeStripeElementsAsync("card-element");
+                stripeInitialized = true; // Mark Stripe as ready
+                Logger.LogInformation("Checkout.razor: Stripe Elements initialized successfully.");
+                // We need to re-render AFTER stripe is initialized so the button enable/disable state updates
+                await InvokeAsync(StateHasChanged);
+                renderCycleAfterStripe++; // Increment counter
+                Logger.LogInformation("Checkout.razor: StateHasChanged called, renderCycleAfterStripe = {Count}", renderCycleAfterStripe);
+            }
+            catch (Exception ex)
+            {
+                 Logger.LogError(ex, "Failed to initialize Stripe Elements.");
+                 errorMessage = "Failed to load payment form. Please refresh the page.";
+                 stripeInitialized = false;
+                 StateHasChanged();
+            }
+        }
+        else if (firstRender) {
+            // Log if it was first render but cart was empty/null
+            Logger.LogInformation("Checkout.razor: OnAfterRenderAsync firstRender was true, but cart empty/null, skipping Stripe init.");
+        }
+    }
+
+
+    private async Task HandlePlaceOrder()
+    {
+        if (!stripeInitialized || isProcessing || cartItems == null || !cartItems.Any()) {
+            // Add extra checks here just in case
+            Logger.LogWarning("Place order clicked but conditions not met. Stripe Initialized: {StripeInit}, Is Processing: {Processing}, Cart Empty: {CartEmpty}", stripeInitialized, isProcessing, cartItems == null || !cartItems.Any());
+            errorMessage = "Cannot place order at this time.";
+            isProcessing = false; // Ensure processing is false if it fails early
+            StateHasChanged();
+            return;
+        }
+
+        isProcessing = true;
+        errorMessage = null;
+        StateHasChanged(); // Update UI to show processing state
+
+        try
+        {
+            // 1. Create Payment Method using Stripe Elements
+            var paymentMethodResult = await StripeService.CreatePaymentMethodAsync();
+
+            if (!string.IsNullOrEmpty(paymentMethodResult.ErrorMessage) || string.IsNullOrEmpty(paymentMethodResult.PaymentMethodId))
+            {
+                errorMessage = $"Payment details error: {paymentMethodResult.ErrorMessage ?? "Unknown error"}";
+                isProcessing = false;
+                StateHasChanged();
+                return;
+            }
+
+            Logger.LogInformation("Stripe PaymentMethod created: {PaymentMethodId}", paymentMethodResult.PaymentMethodId);
+
+
+            // 2. Send Checkout Request to API
+            var checkoutRequest = new CheckoutRequestDto(cartItems!, paymentMethodResult.PaymentMethodId);
+            var response = await ApiClient.CheckoutAsync(checkoutRequest);
+
+            if (response?.Success == true && response.OrderId.HasValue)
+            {
+                Logger.LogInformation("Checkout successful. Order ID: {OrderId}", response.OrderId.Value);
+                await CartService.ClearCartAsync(); // Clear cart on success
+                NavigationManager.NavigateTo($"/orderconfirmation/{response.OrderId.Value}"); // Redirect to confirmation page
+            }
+            else
+            {
+                Logger.LogWarning("Checkout failed. API Response: {@CheckoutResponse}", response);
+                errorMessage = response?.Message ?? "Checkout failed. Please try again.";
+                isProcessing = false;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "An exception occurred during HandlePlaceOrder");
+            errorMessage = "An unexpected error occurred while placing your order. Please try again later.";
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+     // Implement IAsyncDisposable to potentially unmount Stripe element if needed
+     public async ValueTask DisposeAsync()
+     {
+         Logger.LogDebug("Checkout component disposed.");
+         GC.SuppressFinalize(this); // If DisposeAsync is implemented
+     }
+}

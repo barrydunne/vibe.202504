@@ -1,0 +1,14 @@
+{
+    "Servers": {
+        "1": {
+            "Name": "TShirtStore Docker DB",
+            "Group": "Docker Servers",
+            "Host": "postgres_db",
+            "Port": 5432,
+            "MaintenanceDB": "order_db",
+            "Username": "tstoreuser",
+            "SSLMode": "prefer",
+            "PassFile": "/pgpass/pgpassfile"
+        }
+    }
+}

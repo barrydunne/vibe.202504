@@ -1,0 +1,22 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@inject NavigationManager NavigationManager
+
+<AuthorizeView Context="AuthContext"> @* Define the context variable name *@
+    <Authorized>
+        <span class="text-light me-2">Hello, @AuthContext.User.Identity?.Name!</span> @* Use the defined context *@
+        <button class="nav-link btn btn-link" @onclick="BeginLogOut">Log out</button>
+    </Authorized>
+    <NotAuthorized>
+        <a href="authentication/register">Register</a> @* Keycloak handles registration flow *@
+        <a href="authentication/login">Log in</a> @* Redirects to Keycloak login *@
+    </NotAuthorized>
+</AuthorizeView>
+
+@code{
+    private void BeginLogOut(MouseEventArgs args) // Changed to synchronous void
+    {
+        // Use the new extension method for logout navigation
+        NavigationManager.NavigateToLogout("authentication/logout");
+    }
+}

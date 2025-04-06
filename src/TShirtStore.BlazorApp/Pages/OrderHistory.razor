@@ -1,0 +1,73 @@
+@page "/orderhistory"
+@attribute [Authorize] // Only logged-in users can see this
+@inject ApiClient ApiClient
+@inject ILogger<OrderHistory> Logger
+
+<PageTitle>Order History</PageTitle>
+
+<h1>Your Order History</h1>
+
+@if (isLoading)
+{
+    <p><em>Loading your orders...</em></p>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+     <div class="alert alert-danger">@errorMessage</div>
+}
+else if (orders == null || !orders.Any())
+{
+    <p>You haven't placed any orders yet. <a href="/">Start shopping!</a></p>
+}
+else
+{
+    @foreach (var order in orders)
+    {
+        <div class="card mb-3">
+            <div class="card-header">
+                Order #@order.Id - Placed on @order.OrderDate.ToString("yyyy-MM-dd HH:mm")
+            </div>
+            <div class="card-body">
+                <h5 class="card-title">Total: @order.TotalAmount.ToString("C")</h5>
+                <h6>Items:</h6>
+                <ul>
+                    @foreach (var item in order.Items)
+                    {
+                        <li>@item.Quantity x @item.ProductName (@item.UnitPrice.ToString("C") each)</li>
+                    }
+                </ul>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private List<OrderDto>? orders;
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        try
+        {
+            orders = await ApiClient.GetOrderHistoryAsync();
+             if (orders == null)
+             {
+                 // ApiClient might return null on auth errors that cause redirects,
+                 // or actual API failures. ApiClient logs the specifics.
+                 errorMessage = "Could not load order history. Please try again later.";
+                 Logger.LogWarning("GetOrderHistoryAsync returned null.");
+             }
+        }
+        catch (Exception ex) // Catch any unexpected errors during the fetch
+        {
+             Logger.LogError(ex, "Error loading order history");
+             errorMessage = $"An error occurred while loading your orders: {ex.Message}";
+        }
+        finally
+        {
+             isLoading = false;
+        }
+    }
+}

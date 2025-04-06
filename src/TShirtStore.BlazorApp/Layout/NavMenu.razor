@@ -1,0 +1,85 @@
+@implements IDisposable
+@inject CartService CartService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">T-Shirt Store</a>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <nav class="nav flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="cart">
+                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Cart <span class="badge bg-secondary mx-sm-3">@cartItemCount</span>
+            </NavLink>
+        </div>
+        @* Show Order History only if logged in *@
+        <AuthorizeView> 
+             <Authorized>
+                 <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="orderhistory">
+                        <span class="bi bi-list-rich" aria-hidden="true"></span> Order History
+                    </NavLink>
+                </div>
+             </Authorized>
+        </AuthorizeView>
+
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+    private int cartItemCount = 0;
+    private Task<AuthenticationState>? _currentAuthenticationState;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CartService.OnChange += HandleCartChange;
+        AuthenticationStateProvider.AuthenticationStateChanged += HandleAuthenticationStateChanged;
+        _currentAuthenticationState = AuthenticationStateProvider.GetAuthenticationStateAsync();
+        await UpdateCartCount();
+    }
+
+    private async void HandleAuthenticationStateChanged(Task<AuthenticationState> task)
+    {
+        // When auth state changes (e.g., after login), update auth state and force cart refresh
+        _currentAuthenticationState = task;
+        await UpdateCartCount(); // Re-fetch cart count
+        await InvokeAsync(StateHasChanged); // Ensure UI update
+    }
+
+     private async void HandleCartChange()
+    {
+        await UpdateCartCount();
+        await InvokeAsync(StateHasChanged); // Ensure UI updates on the correct thread
+    }
+
+    private async Task UpdateCartCount()
+    {
+        cartItemCount = await CartService.GetCartItemCountAsync();
+    }
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+
+     public void Dispose()
+    {
+        CartService.OnChange -= HandleCartChange;
+        AuthenticationStateProvider.AuthenticationStateChanged -= HandleAuthenticationStateChanged; // Unsubscribe
+        GC.SuppressFinalize(this);
+    }
+}

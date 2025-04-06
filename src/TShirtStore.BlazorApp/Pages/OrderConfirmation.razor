@@ -1,0 +1,38 @@
+@page "/orderconfirmation/{OrderId:int}"
+@inject ILogger<OrderConfirmation> Logger
+
+<PageTitle>Order Confirmed</PageTitle>
+
+<h1>Order Confirmed!</h1>
+
+@if (OrderId > 0)
+{
+    <div class="alert alert-success">
+        Your Order (ID: @OrderId) has been placed successfully.
+    </div>
+    <p>Thank you for your purchase!</p>
+    <p><a href="/orderhistory">View your order history</a></p>
+    <p><a href="/">Continue shopping</a></p>
+}
+else
+{
+     <div class="alert alert-warning">
+        Invalid order confirmation request.
+    </div>
+     <p><a href="/">Go to homepage</a></p>
+}
+
+
+@code {
+    [Parameter]
+    public int OrderId { get; set; }
+
+     protected override void OnInitialized()
+    {
+        if (OrderId > 0) {
+             Logger.LogInformation("Displaying order confirmation for OrderId {OrderId}", OrderId);
+        } else {
+             Logger.LogWarning("Invalid OrderId (0 or less) passed to OrderConfirmation page.");
+        }
+    }
+}

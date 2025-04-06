@@ -1,0 +1,29 @@
+@* Component to display a single product card *@
+@inject ILogger<ProductDisplay> Logger
+
+<div class="card h-100">
+    <img src="@Product?.ImageUrl" class="card-img-top" alt="@Product?.Name" style="max-height: 200px; object-fit: contain;">
+    <div class="card-body d-flex flex-column">
+        <h5 class="card-title">@Product?.Name</h5>
+        <p class="card-text flex-grow-1">@Product?.Description</p>
+        <p class="card-text"><strong>@Product?.Price.ToString("C")</strong></p>
+        <button class="btn btn-primary mt-auto" @onclick="AddToCartClicked" disabled="@(Product == null)">Add to Cart</button>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public ProductDto? Product { get; set; }
+
+    [Parameter]
+    public EventCallback<ProductDto> OnAddToCart { get; set; } // Callback to parent
+
+    private async Task AddToCartClicked()
+    {
+        if (Product != null)
+        {
+             Logger.LogDebug("Add to cart button clicked for Product {ProductId}", Product.Id);
+            await OnAddToCart.InvokeAsync(Product);
+        }
+    }
+}

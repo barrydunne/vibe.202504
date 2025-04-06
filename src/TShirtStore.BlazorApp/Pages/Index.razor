@@ -1,0 +1,117 @@
+@page "/"
+@inject ApiClient ApiClient
+@inject CartService CartService
+@inject ILogger<Index> Logger
+
+<PageTitle>T-Shirt Store - Home</PageTitle>
+
+<h1>Welcome to the T-Shirt Store!</h1>
+
+<div class="input-group mb-3">
+    <input type="text" class="form-control" placeholder="Search by description..." @bind="searchTerm" @oninput="TriggerSearch" />
+    <button class="btn btn-outline-secondary" type="button" @onclick="SearchProducts">Search</button>
+</div>
+
+
+@if (isLoading)
+{
+    <p><em>Loading products...</em></p>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+     <div class="alert alert-danger">@errorMessage</div>
+}
+else if (products == null || !products.Any())
+{
+    <p><em>No products found matching your criteria.</em></p>
+}
+else
+{
+    <div class="row">
+        @foreach (var product in products)
+        {
+            <div class="col-md-4 mb-3">
+                <ProductDisplay Product="product" OnAddToCart="HandleAddToCart" />
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<ProductDto>? products;
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string searchTerm = string.Empty;
+    private System.Threading.Timer? searchTimer;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProducts();
+        // Dispose timer on component disposal (implement IDisposable)
+        searchTimer = new System.Threading.Timer(async _ => {
+            await SearchProducts();
+            await InvokeAsync(StateHasChanged); // Update UI from timer thread
+        }, null, Timeout.Infinite, Timeout.Infinite); // Disabled initially
+    }
+
+     private async Task LoadProducts(string? search = null)
+    {
+        isLoading = true;
+        errorMessage = null;
+        StateHasChanged(); // Update UI immediately
+
+        try
+        {
+            products = await ApiClient.GetProductsAsync(search);
+            if(products == null)
+            {
+                 errorMessage = "Could not load products. The API might be unavailable.";
+                 Logger.LogWarning("API returned null product list. Search: '{SearchTerm}'", search);
+            }
+        }
+        catch (Exception ex)
+        {
+             Logger.LogError(ex, "Error loading products. Search: '{SearchTerm}'", search);
+             errorMessage = $"An error occurred: {ex.Message}";
+             products = null; // Clear product list on error
+        }
+        finally
+        {
+             isLoading = false;
+             StateHasChanged(); // Update UI after loading/error
+        }
+    }
+
+    private void TriggerSearch(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString() ?? string.Empty;
+        // Debounce: Wait 500ms after user stops typing before searching
+        searchTimer?.Change(500, Timeout.Infinite);
+    }
+
+
+    private async Task SearchProducts()
+    {
+         searchTimer?.Change(Timeout.Infinite, Timeout.Infinite); // Disable timer during search execution
+        await LoadProducts(searchTerm);
+    }
+
+
+    private async Task HandleAddToCart(ProductDto product)
+    {
+        if(product != null)
+        {
+            await CartService.AddToCartAsync(product);
+            Logger.LogInformation("Added product {ProductId} to cart from Index page", product.Id);
+            // Optionally show a confirmation message
+        }
+    }
+
+     // Implement IDisposable if using Timer
+    public void Dispose()
+    {
+        searchTimer?.Dispose();
+        GC.SuppressFinalize(this);
+    }
+}

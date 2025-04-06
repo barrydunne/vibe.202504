@@ -1,0 +1,133 @@
+#=========================================================================================
+# General .gitignore file for TShirtStore (.NET 9, Blazor WASM, Minimal API, Docker)
+# Combines rules from standard VisualStudio, DotnetCore, JetBrains templates and specifics
+#=========================================================================================
+
+#-----------------------------------------------------------------------------------------
+# Build Artifacts & Dependencies
+#-----------------------------------------------------------------------------------------
+**/[Bb]in/
+**/[Oo]bj/
+**/packages/ # NuGet dependency folder (older style)
+project.lock.json # NuGet lock file (can be committed if desired, but often ignored)
+*.nuget.props
+*.nuget.targets
+
+#-----------------------------------------------------------------------------------------
+# Visual Studio specific files
+#-----------------------------------------------------------------------------------------
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/ # VS hidden directory
+*.csproj.DotSettings.user # ReSharper settings file
+
+#-----------------------------------------------------------------------------------------
+# JetBrains Rider specific files
+#-----------------------------------------------------------------------------------------
+.idea/ # Rider hidden directory
+*.sln.iml # Rider module file
+
+#-----------------------------------------------------------------------------------------
+# Visual Studio Code specific files
+#-----------------------------------------------------------------------------------------
+.vscode/ # Only ignore the whole folder if settings aren't shared
+# *.code-workspace # Uncomment if you don't want to share workspace settings
+
+#-----------------------------------------------------------------------------------------
+# Operating System generated files
+#-----------------------------------------------------------------------------------------
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+
+#-----------------------------------------------------------------------------------------
+# Log files
+#-----------------------------------------------------------------------------------------
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+#-----------------------------------------------------------------------------------------
+# Runtime Data / Cache
+#-----------------------------------------------------------------------------------------
+*_i.c
+*_p.c
+*.ilk
+*.meta
+*.pch
+*.pdb
+*.tmp
+App_Data/
+
+#-----------------------------------------------------------------------------------------
+# Configuration / Secrets (Generally ignored in favour of env vars or secure stores)
+#-----------------------------------------------------------------------------------------
+appsettings.Development.json # Often contains dev secrets/connection strings
+secrets.json
+*.secrets.json
+*.env # If using .env files locally for environment variables
+
+# IMPORTANT: UserSecrets should NOT be committed. The UserSecretsId in the .csproj is ok.
+# The actual secrets are stored outside the project directory.
+
+#-----------------------------------------------------------------------------------------
+# Test Results & Coverage Reports
+#-----------------------------------------------------------------------------------------
+TestResults/
+*.trx
+*.coverage
+*.coverlet.json
+coverage.*.xml
+
+#-----------------------------------------------------------------------------------------
+# EF Core / Database related temp files
+#-----------------------------------------------------------------------------------------
+# *.dbmdl # Older EF Power Tools artifact
+# Consider if you want to commit database files (e.g., SQLite .db files used for local dev/testing)
+# *.db
+# *.sqlite
+# *.sqlite3
+
+#-----------------------------------------------------------------------------------------
+# Publishing / Deployment artifacts (if accidentally generated in source tree)
+#-----------------------------------------------------------------------------------------
+publish/
+*.deployproj
+*.pubxml
+*.publishproj
+*.azurePubxml # Azure publishing profile
+
+#-----------------------------------------------------------------------------------------
+# Miscellaneous
+#-----------------------------------------------------------------------------------------
+*.zip
+*.rar
+*.gz
+*.tar
+
+#-----------------------------------------------------------------------------------------
+# Docker specific build outputs (if generated within source) - handled by .dockerignore mainly
+#-----------------------------------------------------------------------------------------
+# obj/Docker/
+# bin/Docker/
+
+#-----------------------------------------------------------------------------------------
+# Project specific additions (Add any other generated files specific to your tooling)
+#-----------------------------------------------------------------------------------------
+# Example: If using specific code generators that produce temp files
+/.vs

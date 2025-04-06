@@ -1,0 +1,180 @@
+version: '3.8'
+
+services:
+  postgres_db:
+    image: postgres:16
+    container_name: tshirtstore_postgres
+    environment:
+      POSTGRES_USER: tstoreuser
+      POSTGRES_PASSWORD: tstorepassword
+      POSTGRES_DB: order_db # Main DB for app data (orders, products)
+      # Keycloak will use its own DB or we can create one here
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/pgdata
+      - ./postgres-init:/docker-entrypoint-initdb.d # Optional: Script to create Keycloak DB
+    ports:
+      - "5432:5432" # Expose for local tools if needed, not required by services
+    networks:
+      - tshirtstore_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:9.2.0
+    container_name: tshirtstore_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.dev # Login email for pgAdmin UI
+      PGADMIN_DEFAULT_PASSWORD: adminpassword # Login password for pgAdmin UI
+      PGADMIN_CONFIG_SERVER_MODE: 'False' # Run in Desktop mode locally
+    volumes:
+      # Persist pgAdmin data (servers, settings)
+      - pgadmin_data:/var/lib/pgadmin
+      # Mount servers config file from the new location (read-only)
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro  # <-- UPDATED PATH
+      # Mount password file from the new location (read-only)
+      - ./pgadmin/pgpassfile:/pgpass/pgpassfile:ro      # <-- UPDATED PATH
+    ports:
+      # Map host port 5050 to pgAdmin container port 80
+      - "5050:80"
+    networks:
+      - tshirtstore_net
+    depends_on:
+      postgres_db:
+        condition: service_healthy # Wait for DB to be ready
+
+  mailcatcher:
+    image: dockage/mailcatcher:0.9.0
+    container_name: tshirtstore_mailcatcher
+    ports:
+      # Expose Mailcatcher Web UI on host port 1080 -> container 1080
+      - "1080:1080"
+      # Expose SMTP port 1025 ONLY INTERNALLY if not needed from host
+      # If you needed to connect from host directly: - "1025:1025"
+    networks:
+      - tshirtstore_net
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1.4
+    container_name: tshirtstore_keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres_db # Service name in docker network
+      KC_DB_URL_DATABASE: keycloak_db # Separate DB for Keycloak
+      KC_DB_USERNAME: tstoreuser
+      KC_DB_PASSWORD: tstorepassword
+      KC_DB_SCHEMA: public
+      KC_HTTP_ENABLED: true # Enable HTTP for development
+      KC_HOSTNAME_STRICT: false # Allow access via localhost
+      KC_HOSTNAME_STRICT_HTTPS: false # Dev only
+      KC_PROXY: edge # If running behind a proxy (not needed here usually)
+      KEYCLOAK_ADMIN: admin       # Initial admin user
+      KEYCLOAK_ADMIN_PASSWORD: admin # Initial admin password
+      KC_HOSTNAME_URL: http://localhost:8080/   # Public URL base for realms
+      KC_HTTP_RELATIVE_PATH: / # Ensures paths are relative to root
+      # --- Keycloak SMTP Settings (Point to Mailcatcher) ---
+      KC_SMTP_SERVER_HOST: mailcatcher  # Service name of mailcatcher
+      KC_SMTP_SERVER_PORT: 1025         # Mailcatcher's internal SMTP port
+      # KC_SMTP_SERVER_SSL: "false"     # Defaults should be okay
+      # KC_SMTP_SERVER_AUTH: "false"    # Defaults should be okay
+      # KC_SMTP_FROM: "keycloak@tshirtstore.local" # Set a default From address
+      # KC_SMTP_FROM_DISPLAY_NAME: "TShirtStore Keycloak"
+    volumes:
+      - ./keycloak-config:/opt/keycloak/data/import # Mount realm config for import
+    ports:
+      - "8080:8080"
+    networks:
+      - tshirtstore_net
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+      mailcatcher:
+        condition: service_started
+
+  seq:
+    image: datalust/seq:2024.3
+    container_name: tshirtstore_seq
+    environment:
+      ACCEPT_EULA: Y
+    ports:
+      - "5341:80" # Expose Seq UI on 5341
+      # Port 5341 is often used internally by Seq; map host 5341 to container 80 (Seq's default HTTP)
+    volumes:
+      - seq_data:/data
+    networks:
+      - tshirtstore_net
+
+  stripe_mock:
+    image: stripe/stripe-mock:v0.193.0
+    container_name: tshirtstore_stripe_mock
+    ports:
+      - "12111:12111" # Default Stripe Mock port
+    networks:
+      - tshirtstore_net
+
+  tshirtstore_api:
+    container_name: tshirtstore_api
+    build:
+      context: .
+      dockerfile: src/TShirtStore.Api/Dockerfile # Assumes Dockerfile exists
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:80 # Run on port 80 inside container
+      ConnectionStrings__OrderDbConnection: "Host=postgres_db;Port=5432;Database=order_db;Username=tstoreuser;Password=tstorepassword;"
+      Keycloak__Authority: "http://keycloak:8080/realms/tshirtstore" # Use service name
+      Keycloak__Audience: "tshirtstore-api"
+      Keycloak__Issuer: "http://localhost:8080/realms/tshirtstore"
+      Stripe__SecretKey: "sk_test_123" # Mock key
+      Stripe__ApiBase: "http://stripe_mock:12111" # Use service name
+      Serilog__WriteTo__1__Args__serverUrl: "http://seq:80" # Use service name (Seq listens on 80 internally)
+      # API Key Config (better via secrets management in prod)
+      ApiClients__0__ClientId: "TestClient"
+      ApiClients__0__ApiKey: "TestApiKey123"
+      ApiClients__0__SecretHash: "5eee56a4a9068a86f6a076df8997139c8a7d896c4a6b4b0852b718ac8e358db3" # Hash of "TestSecret123"
+    ports:
+      - "5002:80" # Map host 5002 to container 80
+    networks:
+      - tshirtstore_net
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started # Keycloak healthcheck is complex, start is often enough for dev
+      stripe_mock:
+        condition: service_started
+      seq:
+        condition: service_started
+
+  tshirtstore_blazorapp:
+    container_name: tshirtstore_blazorapp
+    build:
+      context: .
+      dockerfile: src/TShirtStore.BlazorApp/Dockerfile # Assumes Dockerfile exists
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development # Controls appsettings loading
+      # Pass config via env vars OR rely on appsettings.json baked into image
+      # Example using env vars (overrides appsettings.json):
+      ApiBaseAddress: "http://localhost:5002" # API accessed via host port
+      Keycloak__Authority: "http://localhost:8080/realms/tshirtstore" # Keycloak accessed via host port
+      Keycloak__ClientId: "tshirtstore-blazor-client"
+      Stripe__PublishableKey: "pk_test_123" # Mock key
+      # Serilog Seq URL is configured in Program.cs, points to localhost:5341
+    ports:
+      - "5001:80" # Map host 5001 to container 80 (Blazor default internal port)
+    networks:
+      - tshirtstore_net
+    depends_on:
+      - tshirtstore_api # Wait for API (optional, Blazor can load even if API is down initially)
+
+networks:
+  tshirtstore_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  seq_data:
+  pgadmin_data:

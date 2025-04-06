@@ -1,0 +1,36 @@
+@inject NavigationManager NavigationManager // Keep injections if needed
+@inject ILogger<App> Logger
+
+<CascadingAuthenticationState> @* <-- Restore wrapper *@
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+             @* Restore AuthorizeRouteView *@
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    
+                    @if (context.User.Identity?.IsAuthenticated != true) {
+                        <RedirectToLogin />
+                    } else {
+                        <p role="alert">You are not authorized to access this resource.</p>
+                    }
+                </NotAuthorized>
+                <Authorizing>
+                    <p><em>Checking authentication state...</em></p>
+                </Authorizing>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Not found</PageTitle>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <p role="alert">Sorry, there's nothing at this address.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState> @* <-- Restore wrapper *@
+
+@code{
+    protected override void OnInitialized() {
+        Logger.LogInformation("Blazor App component initialized.");
+    }
+}

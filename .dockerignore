@@ -1,0 +1,36 @@
+# Git files
+.git
+.gitignore
+
+# Project build artifacts
+**/bin/
+**/obj/
+
+# Test projects (don't need source in prod image build context)
+tests/
+
+# IDE/Editor specific files
+.vs/
+.vscode/
+*.suo
+*.user
+
+# Rider files
+.idea/
+
+# OS specific files
+*.DS_Store
+Thumbs.db
+
+# Docker related files within context (avoid copying compose file itself etc)
+docker-compose*.yml
+Dockerfile* # Let docker build choose the right one
+.dockerignore
+
+# Secrets/config not meant for image (load via env vars/volumes)
+secrets/
+appsettings.Development.json # Usually loaded via ASPNETCORE_ENVIRONMENT
+
+# Other temporary files
+*.log
+*.tmp
