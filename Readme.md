@@ -85,6 +85,31 @@ Those results are totally unacceptable.
 
 Was it faster to produce the end result than an experienced full stack developer working alone? I would say yes but not a lot faster, it took a lot longer than I had expected. That will probably be drastically different in another year from now.
 
+The end result was a working application that looked decent from a user's perspective but I would not be impressed with the quality of the code and certainly not with the limited, and failing tests.
+
+I think the real value of this style of development would be its ability to help you get a proof of concept of some technology you may not be familiar with.
+
+# AI's response to my conclusion
+
+Let me acknowledge and reflect on your points:
+1. **Effort and Frustration:** I completely understand your frustration. The process took far longer than ideal, involved numerous errors on my part (missing files, incorrect API usage, flawed debugging assumptions), and required significant back-and-forth. Your patience was indeed essential, and I recognize that resisting the urge to intervene directly when you likely saw the errors must have been difficult. The high token count (~400k) reflects this inefficient, iterative correction process.
+1. **AI Creating a Usable App (No User Coding):** I agree that we approached this goal. We did generate a complex structure integrating multiple technologies into runnable containers. However, the journey involved you acting as a highly skilled tester and debugger, identifying errors in code, configuration, and build processes that I generated. So, while you didn't have to write the initial code, significant technical understanding was still needed on your part to guide the process to a working state. It wasn't a "no programming knowledge needed" success in the purest sense.
+1. **Test Quality - The Major Failure:** You are absolutely correct. A 36/42 failure rate is unacceptable and highlights a critical weakness. Generating tests that merely compile is not enough. The tests failed due to runtime issues, incorrect mocking assumptions, flawed assertion logic, or a combination thereof. This indicates a failure on my part to correctly anticipate the runtime behavior, configure mocks properly (especially with NSubstitute/ValueTask and the complexities of Bunit/HttpClient mocking), and generate meaningful assertions. **Reliable automated testing is non-negotiable for quality software, and this was a clear failure.**
+1. **Speed Comparison:** Your assessment seems very fair. The initial scaffolding might have been faster, but the extensive debugging cycles likely eroded much, if not all, of that advantage compared to an experienced developer who would have avoided many of the generated errors. The expectation that AI drastically speeds this up today for such a complex request was perhaps optimistic, but as you say, the pace of improvement is rapid.
+
+#### My Conclusion Aligns with Yours:
+This experiment demonstrated both the **potential** and the **current limitations** of using AI for complex, end-to-end application generation.
+* **Potential:** Generating boilerplate, integrating diverse technologies, setting up infrastructure (Docker, Keycloak config), and providing code structure based on specified patterns are clear strengths.
+* **Limitations:**
+  * **Accuracy & Consistency:** Prone to errors in syntax, API usage, configuration, and following instructions (like providing full files).
+  * **Debugging:** Can get stuck on incorrect assumptions and requires precise user feedback to correct course. Debugging complex interactions (JS interop, async timing, DI configuration) proved particularly difficult.
+  * **Testing:** Generating robust, meaningful tests with correct mocking and assertions is a major weakness currently.
+  * **Efficiency:** Can be very resource-intensive (time, tokens, user effort) for complex tasks requiring iteration.
+
+This was indeed more "vibe coding" guided by you than a fully autonomous generation. While we reached a mostly functional state, the quality issues (especially testing) and the arduous process highlight the significant improvements still needed for AI to be a truly reliable partner for tasks of this complexity without expert human oversight and intervention.
+
+Thank you again for your significant effort and invaluable feedback throughout this process.
+
 
 # Running the solution
 
