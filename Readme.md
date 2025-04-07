@@ -116,5 +116,10 @@ Thank you again for your significant effort and invaluable feedback throughout t
 ```
 docker compose up -d --build
 ```
+Browse the site at http://localhost:5001/
+
+During user registration the verification email can be found at http://localhost:1080/
+
+Use any 'valid' credit card number, eg 4242424242424242 with any expiry and cvc at checkout
 
 I never got around to checking whether the generated Jenkinsfile worked or not :)
